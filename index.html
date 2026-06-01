@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TFEX S50 Grid Risk Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Prompt', sans-serif;
+        }
+        .table-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen py-8">
+
+    <div class="max-w-6xl mx-auto px-4">
+        
+        <!-- Header -->
+        <div class="mb-8 text-center md:text-left">
+            <h1 class="text-3xl font-bold text-slate-900 flex items-center justify-center md:justify-start gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                คำนวณความเสี่ยงกริด TFEX S50
+            </h1>
+            <p class="text-slate-500 mt-2">จำลองการวางไม้ (Grid) ระยะที่ปลอดภัยแบบซื้อรวบจากกรอบบน</p>
+        </div>
+
+        <!-- Input Section -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
+            <h2 class="text-lg font-semibold mb-6 text-slate-800 border-b pb-2 flex items-center gap-2">
+                ⚙️ ตั้งค่าระบบ (ปรับแต่งได้)
+            </h2>
+            
+            <!-- Price Setting -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-5 rounded-xl border border-slate-200 mb-6">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-800 mb-1">📈 ราคากรอบบนสุด (จุด)</label>
+                    <input type="text" inputmode="numeric" id="topPrice" value="900" class="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all font-medium text-slate-800" oninput="formatInput(this); calculateGrid()">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-800 mb-1">🎯 ราคาปัจจุบัน (จุด)</label>
+                    <input type="text" inputmode="numeric" id="currentPrice" value="850" class="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all font-medium text-slate-800" oninput="formatInput(this); calculateGrid()">
+                </div>
+                <div class="md:col-span-2 text-sm text-blue-700 bg-blue-100/50 p-3 rounded-lg flex items-center gap-2 border border-blue-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    <span>ระยะห่างจากกรอบบนถึงราคาปัจจุบันคือ <b id="displayDistance">0</b> จุด (ระบบจะคำนวณจำนวนไม้ที่ต้องซื้อรวบให้โดยอัตโนมัติ)</span>
+                </div>
+            </div>
+
+            <!-- Capital & Grid Settings -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">💰 เงินทุนรวม (บาท)</label>
+                    <input type="text" inputmode="numeric" id="capital" value="500,000" class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" oninput="formatInput(this); calculateGrid()">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">📏 ซื้อกริดทุกๆ (จุด)</label>
+                    <input type="text" inputmode="numeric" id="gridStep" value="5" class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" oninput="formatInput(this); calculateGrid()">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">✖️ มูลค่าต่อจุด (บาท)</label>
+                    <input type="text" inputmode="numeric" id="multiplier" value="200" class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" oninput="formatInput(this); calculateGrid()">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">📜 จำนวนสัญญา/ไม้</label>
+                    <input type="text" inputmode="numeric" id="contracts" value="1" class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" oninput="formatInput(this); calculateGrid()">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">🛡️ Initial Margin (บาท/สัญญา)</label>
+                    <input type="text" inputmode="numeric" id="margin" value="15,000" class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" oninput="formatInput(this); calculateGrid()">
+                    <p class="text-xs text-slate-400 mt-1">*หลักประกันขั้นต่ำที่ใช้เปิดสถานะ</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Dashboard -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            
+            <!-- 1. จำนวนไม้กริดที่เปิดได้ (Blue) -->
+            <div class="bg-blue-50 rounded-xl p-5 border border-blue-100 flex flex-col justify-center">
+                <span class="text-blue-600 text-sm font-semibold mb-1">📦 จำนวนไม้กริดที่เปิดได้</span>
+                <div class="text-3xl font-bold text-blue-700" id="sum-levels">0 ไม้</div>
+            </div>
+            
+            <!-- 2. สัญญาสะสมสูงสุด (Green) -->
+            <div class="bg-green-50 rounded-xl p-5 border border-green-100 flex flex-col justify-center">
+                <span class="text-green-600 text-sm font-semibold mb-1">📋 สัญญาสะสมสูงสุด</span>
+                <div class="text-3xl font-bold text-green-700" id="sum-contracts">0 สัญญา</div>
+            </div>
+
+            <!-- 3. ระยะที่เริ่มโดน Call Margin (Orange) -->
+            <div class="bg-orange-50 rounded-xl p-5 border border-orange-100 flex flex-col justify-center">
+                <span class="text-orange-600 text-sm font-semibold mb-1">⚠️ ระยะที่เริ่มโดน Call Margin</span>
+                <div class="text-3xl font-bold text-orange-700" id="sum-call-margin">0 จุด</div>
+                <div class="text-xs text-orange-500 mt-1">ทุนคงเหลือติดลบเกิน 30% ของหลักประกัน</div>
+            </div>
+
+            <!-- 4. ระยะที่ทนลากได้สูงสุด (Red) -->
+            <div class="bg-red-50 rounded-xl p-5 border border-red-100 flex flex-col justify-center relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 opacity-10"><svg width="80" height="80" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg></div>
+                <span class="text-red-600 text-sm font-semibold mb-1">🛑 ระยะที่ทนลากได้สูงสุด</span>
+                <div class="text-xl font-bold text-red-700" id="sum-points">0 จุด</div>
+                <div class="text-xs text-red-500 mt-1 font-medium">(ไม่นับรวมเงินวางหลักประกัน)</div>
+                <div class="text-xs text-red-400 mt-0.5">จากราคาปัจจุบันจนเงินทุนหมด</div>
+            </div>
+
+        </div>
+
+        <!-- Table Section -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-slate-800">ตารางจำลองสถานะ (Simulation)</h2>
+            </div>
+            <div class="overflow-x-auto table-container" style="max-height: 600px;">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-slate-600 uppercase bg-slate-100 sticky top-0 shadow-sm">
+                        <tr>
+                            <th scope="col" class="px-4 py-3 whitespace-nowrap text-center">ไม้ที่</th>
+                            <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">ระยะที่ลากสะสม (จุด)</th>
+                            <th scope="col" class="px-4 py-3 whitespace-nowrap text-center">สัญญารวม</th>
+                            <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">ขาดทุนลอยตัว (บาท)</th>
+                            <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">หลักประกันที่ใช้ (บาท)</th>
+                            <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">เงินทุนคงเหลือ (บาท)</th>
+                            <th scope="col" class="px-4 py-3 whitespace-nowrap">สถานะ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultBody" class="divide-y divide-slate-100">
+                        <!-- Rows will be generated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function formatInput(el) {
+            let val = el.value.replace(/[^0-9.-]/g, ''); 
+            
+            // Clean up multiple decimal points or negative signs
+            let parts = val.split('.');
+            if (parts.length > 2) parts.pop(); 
+            
+            let isNegative = parts[0].startsWith('-');
+            if (isNegative) parts[0] = '-' + parts[0].replace(/-/g, '');
+            else parts[0] = parts[0].replace(/-/g, '');
+
+            if (parts[0].length > 0 && parts[0] !== '-') {
+                parts[0] = parseInt(parts[0], 10).toLocaleString('en-US');
+            }
+            el.value = parts.join('.');
+        }
+
+        function getNumberFromInput(id) {
+            const rawValue = document.getElementById(id).value;
+            return parseFloat(rawValue.replace(/,/g, '')) || 0;
+        }
+
+        function formatNumber(num) {
+            return num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        }
+
+        function calculateGrid() {
+            const topPrice = getNumberFromInput('topPrice');
+            const currentPrice = getNumberFromInput('currentPrice');
+            const capital = getNumberFromInput('capital');
+            const gridStep = getNumberFromInput('gridStep');
+            const multiplier = getNumberFromInput('multiplier');
+            const contractsPerStep = Math.floor(getNumberFromInput('contracts'));
+            const marginPerContract = getNumberFromInput('margin');
+
+            const tbody = document.getElementById('resultBody');
+            tbody.innerHTML = '';
+
+            // Validation for core inputs
+            if (capital <= 0 || gridStep <= 0 || multiplier <= 0 || contractsPerStep <= 0 || marginPerContract <= 0) return;
+
+            // Calculate distance & initial levels (Bulk Mode Always)
+            const distance = topPrice - currentPrice;
+            document.getElementById('displayDistance').innerText = formatNumber(distance);
+            
+            let initialLevels = 1;
+            if (distance < 0) {
+                 // If current price is higher than top price, wait for it to drop
+                 initialLevels = 0;
+            } else {
+                 // How many grid steps fit in this distance? Plus 1 for the initial top line
+                 initialLevels = Math.floor(distance / gridStep) + 1;
+            }
+
+            let accumulatedLoss = 0;
+            let totalContracts = 0;
+            let step = 1;
+            let drawdown = 0;
+            let gridActive = true;
+            let openedLevels = 0;
+
+            // Summary Variables
+            let maxPoints = 0;
+            let callMarginPoint = null;
+            let maxLevels = 0;
+            let maxContracts = 0;
+
+            // Failsafe loop (max 2000 steps)
+            for (let i = 0; i < 2000; i++) {
+                
+                // Calculate floating loss incurred from previous step to current step
+                if (step > 1) {
+                    accumulatedLoss += totalContracts * gridStep * multiplier;
+                    drawdown += gridStep;
+                }
+
+                let equity = capital - accumulatedLoss;
+                
+                // 1. Check if completely BUST (Equity <= 0)
+                if (equity <= 0) {
+                    accumulatedLoss = capital; 
+                    let actualMarginUsed = totalContracts * marginPerContract;
+                    appendRow(tbody, openedLevels > 0 ? openedLevels : '-', drawdown, totalContracts, accumulatedLoss, actualMarginUsed, 0, 'ล้างพอร์ต (เงินทุนหมด)', 'bg-red-100 text-red-700 font-bold');
+                    
+                    maxPoints = drawdown;
+                    if (callMarginPoint === null) callMarginPoint = drawdown;
+                    break;
+                }
+
+                // 2. Determine contracts to open in this step
+                let levelsToOpen = (step === 1) ? initialLevels : 1;
+                
+                let contractsToOpen = levelsToOpen * contractsPerStep;
+                let nextMarginReq = (totalContracts + contractsToOpen) * marginPerContract;
+                let canOpenNext = (equity - nextMarginReq) >= 0;
+
+                let actualMarginUsed = totalContracts * marginPerContract;
+                let availableBalance = equity - actualMarginUsed;
+                
+                let rowStatus = '';
+                let rowClasses = 'hover:bg-slate-50 transition-colors';
+                let stepDisplay = '';
+
+                // Case: Price is above top grid (0 levels to open initially)
+                if (levelsToOpen === 0 && step === 1) {
+                     rowStatus = `<span class="px-2 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-semibold">รอราคาลงมาในกรอบ</span>`;
+                     stepDisplay = '-';
+                     appendRow(tbody, stepDisplay, drawdown, totalContracts, accumulatedLoss, actualMarginUsed, availableBalance, rowStatus, rowClasses);
+                     step++;
+                     continue;
+                }
+
+                if (gridActive && canOpenNext) {
+                    totalContracts += contractsToOpen;
+                    actualMarginUsed = totalContracts * marginPerContract;
+                    availableBalance = equity - actualMarginUsed;
+                    
+                    if (step === 1) {
+                        openedLevels += levelsToOpen;
+                        stepDisplay = levelsToOpen > 1 ? `1 - ${levelsToOpen}` : openedLevels;
+                        rowStatus = `<span class="px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-semibold">⚡ ซื้อรวบ ${levelsToOpen} ไม้แรก</span>`;
+                        rowClasses = 'bg-purple-50/50 hover:bg-purple-50';
+                    } else {
+                        openedLevels += 1;
+                        stepDisplay = openedLevels;
+                        rowStatus = '<span class="px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs font-medium">เปิดไม้ซื้อ</span>';
+                    }
+                    
+                    maxLevels = openedLevels;
+                    maxContracts = totalContracts;
+                } else {
+                    gridActive = false; // Cannot open anymore
+                    stepDisplay = openedLevels > 0 ? openedLevels : '-';
+                    
+                    // Call Margin Logic: Triggered when available balance is negative AND its absolute value is > 30% of margin used
+                    const callMarginThreshold = -(0.3 * actualMarginUsed);
+                    
+                    if (availableBalance < callMarginThreshold) {
+                        rowStatus = '<span class="px-2 py-1 bg-red-100 text-red-700 rounded-md text-xs font-medium">โดนเรียก Call Margin</span>';
+                        rowClasses = 'bg-red-50 text-red-900';
+                        if (callMarginPoint === null) callMarginPoint = drawdown;
+                    } else {
+                        rowStatus = '<span class="px-2 py-1 bg-orange-100 text-orange-700 rounded-md text-xs font-medium">ถือสถานะ (Margin ไม่พอเปิดเพิ่ม)</span>';
+                        rowClasses = 'bg-orange-50 text-orange-900';
+                    }
+                }
+
+                appendRow(tbody, stepDisplay, drawdown, totalContracts, accumulatedLoss, actualMarginUsed, availableBalance, rowStatus, rowClasses);
+
+                maxPoints = drawdown;
+                step++;
+            }
+
+            // Update Summary Dashboard
+            document.getElementById('sum-points').innerText = formatNumber(maxPoints) + " จุด";
+            document.getElementById('sum-call-margin').innerText = callMarginPoint !== null ? formatNumber(callMarginPoint) + " จุด" : "-";
+            document.getElementById('sum-levels').innerText = formatNumber(maxLevels) + " ไม้";
+            document.getElementById('sum-contracts').innerText = formatNumber(maxContracts) + " สัญญา";
+        }
+
+        function appendRow(tbody, stepDisplay, drawdown, contracts, loss, margin, availableBalance, statusText, rowClasses) {
+            const tr = document.createElement('tr');
+            tr.className = `border-b border-slate-100 ${rowClasses}`;
+            
+            tr.innerHTML = `
+                <td class="px-4 py-3 text-center text-slate-500 font-medium">${stepDisplay}</td>
+                <td class="px-4 py-3 text-right font-semibold text-slate-800">${formatNumber(drawdown)}</td>
+                <td class="px-4 py-3 text-center font-medium">${contracts}</td>
+                <td class="px-4 py-3 text-right font-medium text-red-500">${loss > 0 ? '-' : ''}${formatNumber(loss)}</td>
+                <td class="px-4 py-3 text-right text-slate-600">${formatNumber(margin)}</td>
+                <td class="px-4 py-3 text-right font-semibold ${availableBalance >= 0 ? 'text-blue-600' : 'text-red-600'}">${formatNumber(availableBalance)}</td>
+                <td class="px-4 py-3">${statusText}</td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        // Run calculation on initial load
+        window.onload = calculateGrid;
+    </script>
+</body>
+</html>
