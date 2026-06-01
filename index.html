@@ -62,11 +62,11 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">💰 เงินทุนรวม (บาท)</label>
-                    <input type="text" inputmode="numeric" id="capital" value="500,000" class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" oninput="formatInput(this); calculateGrid()">
+                    <input type="text" inputmode="numeric" id="capital" value="200,000" class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" oninput="formatInput(this); calculateGrid()">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">📏 ซื้อกริดทุกๆ (จุด)</label>
-                    <input type="text" inputmode="numeric" id="gridStep" value="5" class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" oninput="formatInput(this); calculateGrid()">
+                    <input type="text" inputmode="numeric" id="gridStep" value="3" class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" oninput="formatInput(this); calculateGrid()">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">✖️ มูลค่าต่อจุด (บาท)</label>
@@ -80,6 +80,22 @@
                     <label class="block text-sm font-medium text-slate-600 mb-1">🛡️ Initial Margin (บาท/สัญญา)</label>
                     <input type="text" inputmode="numeric" id="margin" value="15,000" class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" oninput="formatInput(this); calculateGrid()">
                     <p class="text-xs text-slate-400 mt-1">*หลักประกันขั้นต่ำที่ใช้เปิดสถานะ</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Warning Banner for Insufficient Funds -->
+        <div id="warningBanner" class="hidden mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="h-6 w-6 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-base font-semibold text-red-800" id="warningText">
+                        เงินไม่เพียงพอกับระยะขอบที่ตั้งค่า
+                    </p>
                 </div>
             </div>
         </div>
@@ -129,7 +145,7 @@
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-center">ไม้ที่</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">ระยะที่ลากสะสม (จุด)</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-center">สัญญารวม</th>
-                            <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">ขาดทุนสะสม (บาท)</th>
+                            <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">ขาดทุนสะสม (บาท)</th> <!-- แก้ไขข้อความตรงนี้ -->
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">หลักประกันที่ใช้ (บาท)</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">เงินทุนคงเหลือ (บาท)</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap">สถานะ</th>
@@ -181,22 +197,33 @@
             const marginPerContract = getNumberFromInput('margin');
 
             const tbody = document.getElementById('resultBody');
+            const warningBanner = document.getElementById('warningBanner');
+            const warningText = document.getElementById('warningText');
+            
             tbody.innerHTML = '';
+            warningBanner.classList.add('hidden'); // ซ่อนแบนเนอร์เป็นค่าเริ่มต้น
 
             // Validation for core inputs
             if (capital <= 0 || gridStep <= 0 || multiplier <= 0 || contractsPerStep <= 0 || marginPerContract <= 0) return;
 
-            // Calculate distance & initial levels (Bulk Mode Always)
+            // 1. Calculate ideal initial levels based on distance
             const distance = topPrice - currentPrice;
             document.getElementById('displayDistance').innerText = formatNumber(distance);
             
-            let initialLevels = 1;
-            if (distance < 0) {
-                 // If current price is higher than top price, wait for it to drop
-                 initialLevels = 0;
-            } else {
-                 // How many grid steps fit in this distance? Plus 1 for the initial top line
-                 initialLevels = Math.floor(distance / gridStep) + 1;
+            let targetInitialLevels = 0;
+            if (distance >= 0) {
+                 targetInitialLevels = Math.floor(distance / gridStep) + 1;
+            }
+
+            // 2. Safeguard: Can we actually afford this many levels?
+            let maxAffordableLevels = Math.floor(capital / (contractsPerStep * marginPerContract));
+            let initialLevels = Math.min(targetInitialLevels, maxAffordableLevels);
+            let missingInitialLevels = targetInitialLevels - initialLevels;
+
+            // แสดงแบนเนอร์แจ้งเตือนถ้าเงินไม่พอ
+            if (missingInitialLevels > 0) {
+                warningBanner.classList.remove('hidden');
+                warningText.innerText = `เงินไม่เพียงพอกับระยะขอบ ${formatNumber(distance)} จุด ที่ตั้งค่า (ระบบเปิดให้ได้สูงสุด ${initialLevels} ไม้)`;
             }
 
             let accumulatedLoss = 0;
@@ -223,19 +250,34 @@
 
                 let equity = capital - accumulatedLoss;
                 
-                // 1. Check if completely BUST (Equity <= 0)
+                // Check if completely BUST (Equity <= 0)
                 if (equity <= 0) {
                     accumulatedLoss = capital; 
                     let actualMarginUsed = totalContracts * marginPerContract;
-                    appendRow(tbody, openedLevels > 0 ? openedLevels : '-', drawdown, totalContracts, accumulatedLoss, actualMarginUsed, 0, 'ล้างพอร์ต (เงินทุนหมด)', 'bg-red-100 text-red-700 font-bold');
+                    appendRow(tbody, openedLevels > 0 ? openedLevels : '-', drawdown, totalContracts, accumulatedLoss, actualMarginUsed, 0, '<span class="px-2 py-1 bg-red-600 text-white rounded-md text-xs font-bold">ล้างพอร์ต (เงินทุนหมด)</span>', 'bg-red-50 text-red-900');
                     
                     maxPoints = drawdown;
                     if (callMarginPoint === null) callMarginPoint = drawdown;
                     break;
                 }
 
-                // 2. Determine contracts to open in this step
+                // If we hold 0 contracts and cannot open any more, stop calculating
+                if (totalContracts === 0 && (step > 1 || initialLevels === 0)) {
+                    if (step === 1) { 
+                        let statusText = "";
+                        if (distance < 0) {
+                            statusText = "รอราคาลงมาในกรอบ";
+                        } else {
+                            statusText = `เงินไม่เพียงพอกับระยะขอบ ${formatNumber(distance)} ที่ตั้งค่า`;
+                        }
+                        appendRow(tbody, '-', 0, 0, 0, 0, capital, `<span class="px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-semibold">${statusText}</span>`, 'bg-red-50');
+                    }
+                    break;
+                }
+
+                // Determine contracts to open in this step
                 let levelsToOpen = (step === 1) ? initialLevels : 1;
+                if (!gridActive) levelsToOpen = 0;
                 
                 let contractsToOpen = levelsToOpen * contractsPerStep;
                 let nextMarginReq = (totalContracts + contractsToOpen) * marginPerContract;
@@ -248,16 +290,7 @@
                 let rowClasses = 'hover:bg-slate-50 transition-colors';
                 let stepDisplay = '';
 
-                // Case: Price is above top grid (0 levels to open initially)
-                if (levelsToOpen === 0 && step === 1) {
-                     rowStatus = `<span class="px-2 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-semibold">รอราคาลงมาในกรอบ</span>`;
-                     stepDisplay = '-';
-                     appendRow(tbody, stepDisplay, drawdown, totalContracts, accumulatedLoss, actualMarginUsed, availableBalance, rowStatus, rowClasses);
-                     step++;
-                     continue;
-                }
-
-                if (gridActive && canOpenNext) {
+                if (levelsToOpen > 0 && canOpenNext) {
                     totalContracts += contractsToOpen;
                     actualMarginUsed = totalContracts * marginPerContract;
                     availableBalance = equity - actualMarginUsed;
@@ -265,8 +298,15 @@
                     if (step === 1) {
                         openedLevels += levelsToOpen;
                         stepDisplay = levelsToOpen > 1 ? `1 - ${levelsToOpen}` : openedLevels;
-                        rowStatus = `<span class="px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-semibold">⚡ ซื้อรวบ ${levelsToOpen} ไม้แรก</span>`;
-                        rowClasses = 'bg-purple-50/50 hover:bg-purple-50';
+                        
+                        // ปรับข้อความในตารางเมื่อเงินไม่พอ
+                        if (missingInitialLevels > 0) {
+                            rowClasses = 'bg-red-50/50 hover:bg-red-50';
+                            rowStatus = `<span class="px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-semibold">⚡ เงินไม่เพียงพอกับระยะขอบ ${formatNumber(distance)} ที่ตั้งค่า (รวบได้ ${levelsToOpen} ไม้)</span>`;
+                        } else {
+                            rowClasses = 'bg-purple-50/50 hover:bg-purple-50';
+                            rowStatus = `<span class="px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-semibold">⚡ ซื้อรวบ ${levelsToOpen} ไม้แรก</span>`;
+                        }
                     } else {
                         openedLevels += 1;
                         stepDisplay = openedLevels;
@@ -275,11 +315,15 @@
                     
                     maxLevels = openedLevels;
                     maxContracts = totalContracts;
-                } else {
-                    gridActive = false; // Cannot open anymore
+                } else if (levelsToOpen > 0 && !canOpenNext) {
+                    gridActive = false; // Cannot open anymore, grid stops expanding
                     stepDisplay = openedLevels > 0 ? openedLevels : '-';
-                    
-                    // Call Margin Logic: Triggered when available balance is negative AND its absolute value is > 30% of margin used
+                } else {
+                    stepDisplay = openedLevels > 0 ? openedLevels : '-';
+                }
+
+                // Call Margin Logic: Triggered when available balance is negative AND its absolute value is > 30% of margin used
+                if (levelsToOpen === 0 || !canOpenNext) {
                     const callMarginThreshold = -(0.3 * actualMarginUsed);
                     
                     if (availableBalance < callMarginThreshold) {
@@ -326,3 +370,4 @@
     </script>
 </body>
 </html>
+
