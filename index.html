@@ -118,7 +118,10 @@
             <!-- 3. ระยะที่เริ่มโดน Call Margin (Orange) -->
             <div class="bg-orange-50 rounded-xl p-5 border border-orange-100 flex flex-col justify-center">
                 <span class="text-orange-600 text-sm font-semibold mb-1">⚠️ ระยะที่เริ่มโดน Call Margin</span>
-                <div class="text-3xl font-bold text-orange-700" id="sum-call-margin">0 จุด</div>
+                <div class="flex items-baseline flex-wrap gap-x-2">
+                    <div class="text-3xl font-bold text-orange-700" id="sum-call-margin">0 จุด</div>
+                    <div class="text-lg font-bold text-orange-500" id="sum-call-margin-price"></div>
+                </div>
                 <div class="text-xs text-orange-500 mt-1">ทุนคงเหลือติดลบเกิน 30% ของหลักประกัน</div>
             </div>
 
@@ -126,7 +129,10 @@
             <div class="bg-red-50 rounded-xl p-5 border border-red-100 flex flex-col justify-center relative overflow-hidden">
                 <div class="absolute -right-4 -top-4 opacity-10"><svg width="80" height="80" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg></div>
                 <span class="text-red-600 text-sm font-semibold mb-1">🛑 ระยะที่ทนลากได้สูงสุด</span>
-                <div class="text-xl font-bold text-red-700" id="sum-points">0 จุด</div>
+                <div class="flex items-baseline flex-wrap gap-x-2">
+                    <div class="text-3xl font-bold text-red-700" id="sum-points">0 จุด</div>
+                    <div class="text-lg font-bold text-red-500" id="sum-points-price"></div>
+                </div>
                 <div class="text-xs text-red-500 mt-1 font-medium">(ไม่นับรวมเงินวางหลักประกัน)</div>
                 <div class="text-xs text-red-400 mt-0.5">จากราคาปัจจุบันจนเงินทุนหมด</div>
             </div>
@@ -145,7 +151,7 @@
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-center">ไม้ที่</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">ระยะที่ลากสะสม (จุด)</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-center">สัญญารวม</th>
-                            <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">ขาดทุนสะสม (บาท)</th> <!-- แก้ไขข้อความตรงนี้ -->
+                            <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">ขาดทุนสะสม (บาท)</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">หลักประกันที่ใช้ (บาท)</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">เงินทุนคงเหลือ (บาท)</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap">สถานะ</th>
@@ -164,7 +170,6 @@
         function formatInput(el) {
             let val = el.value.replace(/[^0-9.-]/g, ''); 
             
-            // Clean up multiple decimal points or negative signs
             let parts = val.split('.');
             if (parts.length > 2) parts.pop(); 
             
@@ -201,12 +206,10 @@
             const warningText = document.getElementById('warningText');
             
             tbody.innerHTML = '';
-            warningBanner.classList.add('hidden'); // ซ่อนแบนเนอร์เป็นค่าเริ่มต้น
+            warningBanner.classList.add('hidden'); 
 
-            // Validation for core inputs
             if (capital <= 0 || gridStep <= 0 || multiplier <= 0 || contractsPerStep <= 0 || marginPerContract <= 0) return;
 
-            // 1. Calculate ideal initial levels based on distance
             const distance = topPrice - currentPrice;
             document.getElementById('displayDistance').innerText = formatNumber(distance);
             
@@ -215,12 +218,10 @@
                  targetInitialLevels = Math.floor(distance / gridStep) + 1;
             }
 
-            // 2. Safeguard: Can we actually afford this many levels?
             let maxAffordableLevels = Math.floor(capital / (contractsPerStep * marginPerContract));
             let initialLevels = Math.min(targetInitialLevels, maxAffordableLevels);
             let missingInitialLevels = targetInitialLevels - initialLevels;
 
-            // แสดงแบนเนอร์แจ้งเตือนถ้าเงินไม่พอ
             if (missingInitialLevels > 0) {
                 warningBanner.classList.remove('hidden');
                 warningText.innerText = `เงินไม่เพียงพอกับระยะขอบ ${formatNumber(distance)} จุด ที่ตั้งค่า (ระบบเปิดให้ได้สูงสุด ${initialLevels} ไม้)`;
@@ -233,16 +234,14 @@
             let gridActive = true;
             let openedLevels = 0;
 
-            // Summary Variables
             let maxPoints = 0;
             let callMarginPoint = null;
+            let callMarginPrice = null;
             let maxLevels = 0;
             let maxContracts = 0;
 
-            // Failsafe loop (max 2000 steps)
             for (let i = 0; i < 2000; i++) {
                 
-                // Calculate floating loss incurred from previous step to current step
                 if (step > 1) {
                     accumulatedLoss += totalContracts * gridStep * multiplier;
                     drawdown += gridStep;
@@ -250,18 +249,19 @@
 
                 let equity = capital - accumulatedLoss;
                 
-                // Check if completely BUST (Equity <= 0)
                 if (equity <= 0) {
                     accumulatedLoss = capital; 
                     let actualMarginUsed = totalContracts * marginPerContract;
                     appendRow(tbody, openedLevels > 0 ? openedLevels : '-', drawdown, totalContracts, accumulatedLoss, actualMarginUsed, 0, '<span class="px-2 py-1 bg-red-600 text-white rounded-md text-xs font-bold">ล้างพอร์ต (เงินทุนหมด)</span>', 'bg-red-50 text-red-900');
                     
                     maxPoints = drawdown;
-                    if (callMarginPoint === null) callMarginPoint = drawdown;
+                    if (callMarginPoint === null) {
+                        callMarginPoint = drawdown;
+                        callMarginPrice = currentPrice - drawdown;
+                    }
                     break;
                 }
 
-                // If we hold 0 contracts and cannot open any more, stop calculating
                 if (totalContracts === 0 && (step > 1 || initialLevels === 0)) {
                     if (step === 1) { 
                         let statusText = "";
@@ -275,7 +275,6 @@
                     break;
                 }
 
-                // Determine contracts to open in this step
                 let levelsToOpen = (step === 1) ? initialLevels : 1;
                 if (!gridActive) levelsToOpen = 0;
                 
@@ -299,7 +298,6 @@
                         openedLevels += levelsToOpen;
                         stepDisplay = levelsToOpen > 1 ? `1 - ${levelsToOpen}` : openedLevels;
                         
-                        // ปรับข้อความในตารางเมื่อเงินไม่พอ
                         if (missingInitialLevels > 0) {
                             rowClasses = 'bg-red-50/50 hover:bg-red-50';
                             rowStatus = `<span class="px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-semibold">⚡ เงินไม่เพียงพอกับระยะขอบ ${formatNumber(distance)} ที่ตั้งค่า (รวบได้ ${levelsToOpen} ไม้)</span>`;
@@ -316,20 +314,22 @@
                     maxLevels = openedLevels;
                     maxContracts = totalContracts;
                 } else if (levelsToOpen > 0 && !canOpenNext) {
-                    gridActive = false; // Cannot open anymore, grid stops expanding
+                    gridActive = false;
                     stepDisplay = openedLevels > 0 ? openedLevels : '-';
                 } else {
                     stepDisplay = openedLevels > 0 ? openedLevels : '-';
                 }
 
-                // Call Margin Logic: Triggered when available balance is negative AND its absolute value is > 30% of margin used
                 if (levelsToOpen === 0 || !canOpenNext) {
                     const callMarginThreshold = -(0.3 * actualMarginUsed);
                     
                     if (availableBalance < callMarginThreshold) {
                         rowStatus = '<span class="px-2 py-1 bg-red-100 text-red-700 rounded-md text-xs font-medium">โดนเรียก Call Margin</span>';
                         rowClasses = 'bg-red-50 text-red-900';
-                        if (callMarginPoint === null) callMarginPoint = drawdown;
+                        if (callMarginPoint === null) {
+                            callMarginPoint = drawdown;
+                            callMarginPrice = currentPrice - drawdown;
+                        }
                     } else {
                         rowStatus = '<span class="px-2 py-1 bg-orange-100 text-orange-700 rounded-md text-xs font-medium">ถือสถานะ (Margin ไม่พอเปิดเพิ่ม)</span>';
                         rowClasses = 'bg-orange-50 text-orange-900';
@@ -342,9 +342,15 @@
                 step++;
             }
 
-            // Update Summary Dashboard
+            // Update Summary Dashboard Points
             document.getElementById('sum-points').innerText = formatNumber(maxPoints) + " จุด";
             document.getElementById('sum-call-margin').innerText = callMarginPoint !== null ? formatNumber(callMarginPoint) + " จุด" : "-";
+            
+            // Update Summary Dashboard Prices (Calculated based on current price)
+            document.getElementById('sum-points-price').innerText = (maxPoints > 0 && openedLevels > 0) ? `(ราคา ${formatNumber(currentPrice - maxPoints)})` : "";
+            document.getElementById('sum-call-margin-price').innerText = callMarginPrice !== null ? `(ราคา ${formatNumber(callMarginPrice)})` : "";
+            
+            // Update levels and contracts
             document.getElementById('sum-levels').innerText = formatNumber(maxLevels) + " ไม้";
             document.getElementById('sum-contracts').innerText = formatNumber(maxContracts) + " สัญญา";
         }
@@ -370,4 +376,3 @@
     </script>
 </body>
 </html>
-
