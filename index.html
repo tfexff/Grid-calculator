@@ -84,17 +84,17 @@
             </div>
         </div>
 
-        <!-- Warning Banner for Insufficient Funds -->
-        <div id="warningBanner" class="hidden mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm">
+        <!-- Warning Banner for Insufficient Funds (ขยายขนาดตัวหนังสือ) -->
+        <div id="warningBanner" class="hidden mb-6 bg-red-50 border-l-4 border-red-500 p-6 rounded-r-lg shadow-sm">
             <div class="flex items-center">
                 <div class="flex-shrink-0">
-                    <svg class="h-6 w-6 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <svg class="h-10 w-10 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                 </div>
-                <div class="ml-3">
-                    <p class="text-base font-semibold text-red-800" id="warningText">
-                        เงินไม่เพียงพอกับระยะขอบที่ตั้งค่า
+                <div class="ml-4">
+                    <p class="text-2xl md:text-3xl font-bold text-red-800 leading-snug" id="warningText">
+                        เงินไม่เพียงพอกับระยะขอบที่ตั้งค่า บอทจะไม่ซื้อเพิ่ม
                     </p>
                 </div>
             </div>
@@ -243,9 +243,10 @@
             let initialLevels = Math.min(targetInitialLevels, maxAffordableLevels);
             let missingInitialLevels = targetInitialLevels - initialLevels;
 
+            // แสดงแบนเนอร์แจ้งเตือนถ้าเงินไม่พอ (ปรับขนาดตัวหนังสือและคำ)
             if (missingInitialLevels > 0) {
                 warningBanner.classList.remove('hidden');
-                warningText.innerText = `เงินไม่เพียงพอกับระยะขอบ ${formatPoint(distance)} จุด ที่ตั้งค่า (ระบบเปิดให้ได้สูงสุด ${initialLevels} ไม้)`;
+                warningText.innerText = `เงินไม่เพียงพอกับระยะขอบ ${formatPoint(distance)} จุด ที่ตั้งค่า (ระบบเปิดให้ได้สูงสุด ${initialLevels} ไม้) บอทจะไม่ซื้อเพิ่ม`;
             }
 
             let accumulatedLoss = 0;
@@ -273,7 +274,8 @@
                 let rowClasses = '';
                 if (missingInitialLevels > 0) {
                     rowClasses = 'bg-red-50/50 hover:bg-red-50';
-                    rowStatus = `<span class="px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-semibold">⚡ เงินไม่พอกับระยะขอบ (รวบได้ ${initialLevels} ไม้)</span>`;
+                    // ปรับขนาดและคำแจ้งเตือนในตาราง
+                    rowStatus = `<span class="px-3 py-1.5 bg-red-100 text-red-800 rounded-md text-base font-bold">⚡ เงินไม่เพียงพอกับระยะขอบ ${formatPoint(distance)} จุด ที่ตั้งค่า (รวบได้ ${initialLevels} ไม้) บอทจะไม่ซื้อเพิ่ม</span>`;
                 } else {
                     rowClasses = 'bg-purple-50/50 hover:bg-purple-50';
                     rowStatus = `<span class="px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-semibold">⚡ ซื้อรวบ ${initialLevels} ไม้แรก</span>`;
@@ -291,7 +293,7 @@
                  appendRow(tbody, '-', 0, simPrice, 0, 0, 0, capital, `<span class="px-2 py-1 bg-slate-200 text-slate-700 rounded-md text-xs font-semibold">รอราคาลงมาแตะ ${formatPrice(topPrice)}</span>`, 'bg-slate-50');
                  gridActive = true;
             } else {
-                 appendRow(tbody, '-', 0, simPrice, 0, 0, 0, capital, `<span class="px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-semibold">เงินไม่พอเปิดแม้แต่ 1 ไม้</span>`, 'bg-red-50');
+                 appendRow(tbody, '-', 0, simPrice, 0, 0, 0, capital, `<span class="px-3 py-1.5 bg-red-100 text-red-800 rounded-md text-base font-bold">เงินไม่เพียงพอกับระยะขอบ ${formatPoint(distance)} จุด ที่ตั้งค่า บอทจะไม่ซื้อเพิ่ม</span>`, 'bg-red-50');
                  gridActive = false;
             }
 
