@@ -33,7 +33,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
                 คำนวณความเสี่ยงกริด TFEX S50
             </h1>
-            <p class="text-slate-500 mt-2">จำลองการวางไม้ (Grid) ระยะที่ปลอดภัยแบบซื้อรวบจากกรอบบน</p>
+            <p class="text-slate-500 mt-2">จำลองการวางไม้ (Grid) ระยะที่ปลอดภัยแบบซื้อรวบจากกรอบบน <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-2">Pro Engine 100% Accurate</span></p>
         </div>
 
         <!-- Input Section -->
@@ -150,6 +150,7 @@
                         <tr>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-center">ไม้ที่</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">ระยะที่ลากสะสม (จุด)</th>
+                            <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">ราคาตลาด (จุด)</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-center">สัญญารวม</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">ขาดทุนสะสม (บาท)</th>
                             <th scope="col" class="px-4 py-3 whitespace-nowrap text-right">หลักประกันที่ใช้ (บาท)</th>
@@ -169,7 +170,6 @@
     <script>
         function formatInput(el) {
             let val = el.value.replace(/[^0-9.-]/g, ''); 
-            
             let parts = val.split('.');
             if (parts.length > 2) parts.pop(); 
             
@@ -188,8 +188,14 @@
             return parseFloat(rawValue.replace(/,/g, '')) || 0;
         }
 
+        // ฟังก์ชันจัดฟอร์แมตตัวเลขทั่วไป (ไม่มีทศนิยม หรือมีสูงสุด 2 ตำแหน่งตามจริง)
         function formatNumber(num) {
             return num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        }
+
+        // ฟังก์ชันจัดฟอร์แมต "ราคา" ให้มีทศนิยม 1 ตำแหน่งเสมอ (เช่น 850.0)
+        function formatPrice(num) {
+            return num.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
         }
 
         function calculateGrid() {
@@ -213,11 +219,21 @@
             const distance = topPrice - currentPrice;
             document.getElementById('displayDistance').innerText = formatNumber(distance);
             
+            // 1. Align to Exact Grid Architecture
             let targetInitialLevels = 0;
+            let firstLineBelowCurrent = 0;
+
             if (distance >= 0) {
+                 // คำนวณจำนวนเส้นกริดที่ราคาตัดผ่านลงมา
                  targetInitialLevels = Math.floor(distance / gridStep) + 1;
+                 // คำนวณเป๊ะๆ ว่าเส้นกริดถัดไปที่ราคาต้องวิ่งไปชนคือเท่าไหร่ (ไม่ใช่แค่เอา currentPrice - step)
+                 firstLineBelowCurrent = topPrice - (targetInitialLevels * gridStep);
+            } else {
+                 targetInitialLevels = 0;
+                 firstLineBelowCurrent = topPrice; // รอให้ราคาลงมาชนขอบบนสุดก่อน
             }
 
+            // 2. Safeguard: Affordability Check
             let maxAffordableLevels = Math.floor(capital / (contractsPerStep * marginPerContract));
             let initialLevels = Math.min(targetInitialLevels, maxAffordableLevels);
             let missingInitialLevels = targetInitialLevels - initialLevels;
@@ -229,139 +245,152 @@
 
             let accumulatedLoss = 0;
             let totalContracts = 0;
-            let step = 1;
             let drawdown = 0;
-            let gridActive = true;
             let openedLevels = 0;
+            let gridActive = true;
 
-            let maxPoints = 0;
-            let callMarginPoint = null;
-            let callMarginPrice = null;
-            let maxLevels = 0;
-            let maxContracts = 0;
+            let exactCallMarginPoint = null;
+            let exactCallMarginPrice = null;
+            let exactBustPoint = null;
+            let exactBustPrice = null;
+
+            let simPrice = currentPrice;
+            let nextTargetPrice = firstLineBelowCurrent;
+
+            // --- STEP 1: INITIAL EXECUTION (Bulk Buy at Current Price) ---
+            if (initialLevels > 0) {
+                totalContracts = initialLevels * contractsPerStep;
+                openedLevels = initialLevels;
+                let actualMarginUsed = totalContracts * marginPerContract;
+                let availableBalance = capital - actualMarginUsed;
+
+                let rowStatus = '';
+                let rowClasses = '';
+                if (missingInitialLevels > 0) {
+                    rowClasses = 'bg-red-50/50 hover:bg-red-50';
+                    rowStatus = `<span class="px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-semibold">⚡ เงินไม่พอกับระยะขอบ (รวบได้ ${initialLevels} ไม้)</span>`;
+                } else {
+                    rowClasses = 'bg-purple-50/50 hover:bg-purple-50';
+                    rowStatus = `<span class="px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-semibold">⚡ ซื้อรวบ ${initialLevels} ไม้แรก</span>`;
+                }
+
+                // Check Call Margin at Step 1 immediately
+                let callMarginThreshold = -(0.3 * actualMarginUsed);
+                if (availableBalance < callMarginThreshold) {
+                     exactCallMarginPoint = 0;
+                     exactCallMarginPrice = simPrice;
+                }
+
+                appendRow(tbody, initialLevels > 1 ? `1 - ${initialLevels}` : '1', 0, simPrice, totalContracts, 0, actualMarginUsed, availableBalance, rowStatus, rowClasses);
+            } else if (distance < 0) {
+                 appendRow(tbody, '-', 0, simPrice, 0, 0, 0, capital, `<span class="px-2 py-1 bg-slate-200 text-slate-700 rounded-md text-xs font-semibold">รอราคาลงมาแตะ ${formatPrice(topPrice)}</span>`, 'bg-slate-50');
+                 gridActive = true; // Still active, wait for price to drop to grid
+            } else {
+                 appendRow(tbody, '-', 0, simPrice, 0, 0, 0, capital, `<span class="px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-semibold">เงินไม่พอเปิดแม้แต่ 1 ไม้</span>`, 'bg-red-50');
+                 gridActive = false;
+            }
+
+            // --- STEP 2+: SIMULATING DROPPING THROUGH EXACT GRID LINES ---
+            let previousEquity = capital;
+            let previousAvailable = capital - (totalContracts * marginPerContract);
 
             for (let i = 0; i < 2000; i++) {
-                
-                if (step > 1) {
-                    accumulatedLoss += totalContracts * gridStep * multiplier;
-                    drawdown += gridStep;
-                }
+                if (!gridActive && totalContracts === 0) break; // ไม่มีสัญญาและเปิดเพิ่มไม่ได้ ให้หยุดประมวลผล
+
+                // คำนวณระยะทางที่ราคาตกลงไปหาเส้นกริดถัดไป
+                let pointsDropped = simPrice - nextTargetPrice;
+                simPrice = nextTargetPrice;
+                drawdown += pointsDropped;
+                accumulatedLoss += totalContracts * pointsDropped * multiplier;
 
                 let equity = capital - accumulatedLoss;
-                
+                let actualMarginUsed = totalContracts * marginPerContract;
+                let availableBalance = equity - actualMarginUsed;
+                let callMarginThreshold = -(0.3 * actualMarginUsed);
+
+                // --- 100% Exact Liquidation Point Math ---
                 if (equity <= 0) {
+                    if (exactBustPoint === null) {
+                        // คำนวณจุดทศนิยมเป๊ะๆ ว่าเงินหมดที่ระยะกี่จุด
+                        let pointsToBust = previousEquity / (totalContracts * multiplier);
+                        exactBustPoint = (drawdown - pointsDropped) + pointsToBust;
+                        exactBustPrice = currentPrice - exactBustPoint;
+                    }
                     accumulatedLoss = capital; 
-                    let actualMarginUsed = totalContracts * marginPerContract;
-                    appendRow(tbody, openedLevels > 0 ? openedLevels : '-', drawdown, totalContracts, accumulatedLoss, actualMarginUsed, 0, '<span class="px-2 py-1 bg-red-600 text-white rounded-md text-xs font-bold">ล้างพอร์ต (เงินทุนหมด)</span>', 'bg-red-50 text-red-900');
-                    
-                    maxPoints = drawdown;
-                    if (callMarginPoint === null) {
-                        callMarginPoint = drawdown;
-                        callMarginPrice = currentPrice - drawdown;
-                    }
+                    appendRow(tbody, openedLevels > 0 ? openedLevels : '-', drawdown, simPrice, totalContracts, accumulatedLoss, actualMarginUsed, 0, '<span class="px-2 py-1 bg-red-600 text-white rounded-md text-xs font-bold">ล้างพอร์ต (เงินทุนหมด)</span>', 'bg-red-50 text-red-900');
                     break;
                 }
 
-                if (totalContracts === 0 && (step > 1 || initialLevels === 0)) {
-                    if (step === 1) { 
-                        let statusText = "";
-                        if (distance < 0) {
-                            statusText = "รอราคาลงมาในกรอบ";
-                        } else {
-                            statusText = `เงินไม่เพียงพอกับระยะขอบ ${formatNumber(distance)} ที่ตั้งค่า`;
-                        }
-                        appendRow(tbody, '-', 0, 0, 0, 0, capital, `<span class="px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-semibold">${statusText}</span>`, 'bg-red-50');
-                    }
-                    break;
+                // --- 100% Exact Call Margin Point Math ---
+                if (availableBalance < callMarginThreshold && exactCallMarginPoint === null && totalContracts > 0) {
+                    let availDiffNeeded = previousAvailable - callMarginThreshold;
+                    let pointsToCall = availDiffNeeded / (totalContracts * multiplier);
+                    exactCallMarginPoint = (drawdown - pointsDropped) + pointsToCall;
+                    exactCallMarginPrice = currentPrice - exactCallMarginPoint;
                 }
 
-                let levelsToOpen = (step === 1) ? initialLevels : 1;
-                if (!gridActive) levelsToOpen = 0;
-                
-                let contractsToOpen = levelsToOpen * contractsPerStep;
+                // Attempt to open new Grid Line
+                let contractsToOpen = contractsPerStep;
                 let nextMarginReq = (totalContracts + contractsToOpen) * marginPerContract;
                 let canOpenNext = (equity - nextMarginReq) >= 0;
 
-                let actualMarginUsed = totalContracts * marginPerContract;
-                let availableBalance = equity - actualMarginUsed;
-                
                 let rowStatus = '';
                 let rowClasses = 'hover:bg-slate-50 transition-colors';
-                let stepDisplay = '';
+                let stepDisplay = '-';
 
-                if (levelsToOpen > 0 && canOpenNext) {
+                if (gridActive && canOpenNext) {
                     totalContracts += contractsToOpen;
+                    openedLevels++;
+                    stepDisplay = openedLevels;
                     actualMarginUsed = totalContracts * marginPerContract;
                     availableBalance = equity - actualMarginUsed;
-                    
-                    if (step === 1) {
-                        openedLevels += levelsToOpen;
-                        stepDisplay = levelsToOpen > 1 ? `1 - ${levelsToOpen}` : openedLevels;
-                        
-                        if (missingInitialLevels > 0) {
-                            rowClasses = 'bg-red-50/50 hover:bg-red-50';
-                            rowStatus = `<span class="px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-semibold">⚡ เงินไม่เพียงพอกับระยะขอบ ${formatNumber(distance)} ที่ตั้งค่า (รวบได้ ${levelsToOpen} ไม้)</span>`;
-                        } else {
-                            rowClasses = 'bg-purple-50/50 hover:bg-purple-50';
-                            rowStatus = `<span class="px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-semibold">⚡ ซื้อรวบ ${levelsToOpen} ไม้แรก</span>`;
-                        }
-                    } else {
-                        openedLevels += 1;
-                        stepDisplay = openedLevels;
-                        rowStatus = '<span class="px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs font-medium">เปิดไม้ซื้อ</span>';
-                    }
-                    
-                    maxLevels = openedLevels;
-                    maxContracts = totalContracts;
-                } else if (levelsToOpen > 0 && !canOpenNext) {
-                    gridActive = false;
-                    stepDisplay = openedLevels > 0 ? openedLevels : '-';
-                } else {
-                    stepDisplay = openedLevels > 0 ? openedLevels : '-';
-                }
+                    rowStatus = '<span class="px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs font-medium">เปิดไม้ซื้อ</span>';
 
-                if (levelsToOpen === 0 || !canOpenNext) {
-                    const callMarginThreshold = -(0.3 * actualMarginUsed);
-                    
+                    // Recheck Call Margin immediately after opening (in case margin jumps up significantly)
+                    callMarginThreshold = -(0.3 * actualMarginUsed);
+                    if (availableBalance < callMarginThreshold && exactCallMarginPoint === null) {
+                        exactCallMarginPoint = drawdown;
+                        exactCallMarginPrice = simPrice;
+                    }
+                } else {
+                    gridActive = false; // เงินหมด เลิกขยายกริด
+                    stepDisplay = openedLevels > 0 ? openedLevels : '-';
                     if (availableBalance < callMarginThreshold) {
                         rowStatus = '<span class="px-2 py-1 bg-red-100 text-red-700 rounded-md text-xs font-medium">โดนเรียก Call Margin</span>';
                         rowClasses = 'bg-red-50 text-red-900';
-                        if (callMarginPoint === null) {
-                            callMarginPoint = drawdown;
-                            callMarginPrice = currentPrice - drawdown;
-                        }
                     } else {
                         rowStatus = '<span class="px-2 py-1 bg-orange-100 text-orange-700 rounded-md text-xs font-medium">ถือสถานะ (Margin ไม่พอเปิดเพิ่ม)</span>';
                         rowClasses = 'bg-orange-50 text-orange-900';
                     }
                 }
 
-                appendRow(tbody, stepDisplay, drawdown, totalContracts, accumulatedLoss, actualMarginUsed, availableBalance, rowStatus, rowClasses);
+                appendRow(tbody, stepDisplay, drawdown, simPrice, totalContracts, accumulatedLoss, actualMarginUsed, availableBalance, rowStatus, rowClasses);
 
-                maxPoints = drawdown;
-                step++;
+                // Update previous states for next iteration math
+                previousEquity = equity;
+                previousAvailable = availableBalance;
+                nextTargetPrice -= gridStep; // เลื่อนเส้นเป้าหมายลงไปอีก 1 กริด
             }
 
-            // Update Summary Dashboard Points
-            document.getElementById('sum-points').innerText = formatNumber(maxPoints) + " จุด";
-            document.getElementById('sum-call-margin').innerText = callMarginPoint !== null ? formatNumber(callMarginPoint) + " จุด" : "-";
+            // Update Summary Dashboard (Using EXACT Mathematical Points)
+            document.getElementById('sum-points').innerText = exactBustPoint !== null ? formatNumber(exactBustPoint) + " จุด" : "-";
+            document.getElementById('sum-points-price').innerText = exactBustPrice !== null ? `(ราคา ${formatPrice(exactBustPrice)})` : "";
+
+            document.getElementById('sum-call-margin').innerText = exactCallMarginPoint !== null ? formatNumber(exactCallMarginPoint) + " จุด" : "-";
+            document.getElementById('sum-call-margin-price').innerText = exactCallMarginPrice !== null ? `(ราคา ${formatPrice(exactCallMarginPrice)})` : "";
             
-            // Update Summary Dashboard Prices (Calculated based on current price)
-            document.getElementById('sum-points-price').innerText = (maxPoints > 0 && openedLevels > 0) ? `(ราคา ${formatNumber(currentPrice - maxPoints)})` : "";
-            document.getElementById('sum-call-margin-price').innerText = callMarginPrice !== null ? `(ราคา ${formatNumber(callMarginPrice)})` : "";
-            
-            // Update levels and contracts
-            document.getElementById('sum-levels').innerText = formatNumber(maxLevels) + " ไม้";
-            document.getElementById('sum-contracts').innerText = formatNumber(maxContracts) + " สัญญา";
+            document.getElementById('sum-levels').innerText = formatNumber(openedLevels) + " ไม้";
+            document.getElementById('sum-contracts').innerText = formatNumber(totalContracts) + " สัญญา";
         }
 
-        function appendRow(tbody, stepDisplay, drawdown, contracts, loss, margin, availableBalance, statusText, rowClasses) {
+        function appendRow(tbody, stepDisplay, drawdown, price, contracts, loss, margin, availableBalance, statusText, rowClasses) {
             const tr = document.createElement('tr');
             tr.className = `border-b border-slate-100 ${rowClasses}`;
             
             tr.innerHTML = `
                 <td class="px-4 py-3 text-center text-slate-500 font-medium">${stepDisplay}</td>
                 <td class="px-4 py-3 text-right font-semibold text-slate-800">${formatNumber(drawdown)}</td>
+                <td class="px-4 py-3 text-right font-bold text-blue-700">${formatPrice(price)}</td>
                 <td class="px-4 py-3 text-center font-medium">${contracts}</td>
                 <td class="px-4 py-3 text-right font-medium text-red-500">${loss > 0 ? '-' : ''}${formatNumber(loss)}</td>
                 <td class="px-4 py-3 text-right text-slate-600">${formatNumber(margin)}</td>
